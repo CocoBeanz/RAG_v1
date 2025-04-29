@@ -11,9 +11,10 @@ from bs4 import BeautifulSoup
 from striprtf.striprtf import rtf_to_text
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
+from huggingface_hub import login
 
 def load_knowledge_base(texts=None, file_dir=None):
-    """Load documents from texts or files (same as previous)."""
+    """Load documents from texts or files."""
     documents = []
     if texts:
         documents = texts
@@ -80,7 +81,7 @@ def build_rag_pipeline(documents, embedding_model_name="all-MiniLM-L6-v2", reran
     return index, embedding_model, reranker, documents
 
 def retrieve_and_rerank(query, index, embedding_model, reranker, documents, top_k=10, rerank_k=3):
-    """Retrieve and rerank documents (same as previous)."""
+    """Retrieve and rerank documents."""
     query_embedding = embedding_model.encode([query], show_progress_bar=False).astype("float32")
     distances, indices = index.search(query_embedding, top_k)
     retrieved_docs = [documents[idx] for idx in indices[0]]
@@ -93,8 +94,19 @@ def retrieve_and_rerank(query, index, embedding_model, reranker, documents, top_
     
     return final_docs, final_scores
 
-def generate_response(query, documents, llm_model_name="mistralai/Mistral-7B-v0.1", lora_path=None):
-    """Generate response using LLM with optional LoRA adapter."""
+def generate_response(query, documents, llm_model_name="mistralai/Mistral-7B-v0.1", lora_path=None, hf_token=None):
+    """Generate response using LLM with optional LoRA adapter and Hugging Face authentication."""
+    # Authenticate with Hugging Face
+    if hf_token:
+        login(hf_token)
+    else:
+        # Check if token is set as environment variable
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            login(hf_token)
+        else:
+            raise ValueError("Hugging Face token not provided. Set HF_TOKEN environment variable or pass hf_token.")
+
     base_model = AutoModelForCausalLM.from_pretrained(llm_model_name)
     tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
     if lora_path:
@@ -131,11 +143,12 @@ def main():
     query = "What is Retrieval-Augmented Generation?"
     retrieved_docs, scores = retrieve_and_rerank(query, index, embedding_model, reranker, documents)
     
-    # Step 4: Generate response (LLM placeholder)
+    # Step 4: Generate response
     response = generate_response(
         query, 
         retrieved_docs, 
-        lora_path=None  # Replace with "path/to/llm/lora" if trained
+        lora_path=None,  # Replace with "path/to/llm/lora" if trained
+        hf_token=os.getenv("HF_TOKEN")  # Or pass token directly: "hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     )
     
     # Print results
